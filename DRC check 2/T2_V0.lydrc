@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>drc</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>false</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name>drc_scripts</group-name>
+ <menu-path>tools_menu.drc.end</menu-path>
+ <interpreter>dsl</interpreter>
+ <dsl-interpreter-name>drc-dsl-xml</dsl-interpreter-name>
+ <text>
+ if $in_gds
+  source($in_gds)
+end
+
+if $report_file
+  report("ASAP7 DRC runset", $report_file)
+else
+  report("ASAP7 DRC runset", File.join(File.dirname(RBA::CellView::active.filename), "6_drc_count.rpt"))
+end
+# DRC test to run or not
+###############
+OFFGRID = false
+DEBUG = true # manufacturing grid/angle checks
+# KLAYOUT setup
+########################
+# Use a tile size of 1mm
+tiles(1000.um)
+# Use a tile border of 10 micron:
+tile_borders(1.um)
+#no_borders
+
+# Hierachical
+deep
+
+# Use 4 CPU cores
+threads(8)
+verbose(true)
+
+
+######################################################
+# layers definitions
+########################
+v0 = input(18, 0)
+#########################################################
+
+
+
+
+
+
+
+# splits a layer classes with increasing min dimensions
+def classify_by_width(layer, *dimensions)
+  dimensions.collect { |d| layer = layer.sized(-0.5 * (d - 1.dbu)).sized(0.5 * (d - 1.dbu)) }
+end
+# Define a new custom function that selects polygons by their number of holes:
+# It will return a new layer containing those polygons with min to max holes.
+# max can be nil to omit the upper limit.
+class DRC::DRCLayer
+  def with_holes(min, max)
+    new_data = RBA::Region::new
+    self.data.each do |p|
+      if p.holes &gt;= (min || 0) &amp;&amp; (!max || p.holes &lt;= max)
+        new_data.insert(p)
+      end
+    end
+    DRC::DRCLayer::new(@engine, new_data)
+  end
+end 
+
+
+
+# DRC section
+########################
+info("DRC section")
+
+###   V0
+v0.width(18.nm).output("V0.W.1", "V0.W.1 : Min. width of V0 : 18nm")
+v0.space(18.nm, projection).output("V0.S.1", "V0.S.1 : Min. spacing between V0 instances [on the same M1 track or on parallel M1 tracks, if they are fully or partially aligned with each other : 18nm")
+v0spaceortho = v0.space(27.nm, projection).polygons
+v0.space(27.nm, euclidian).polygons.not_interacting(v0spaceortho).output("V0.S.1", "V0.S.1 : Min. spacing between V0 instances on parallel M1 tracks, if they are not aligned with each other : 27nm")
+m1ovlp5v0 = (m1 &amp; v0.sized(5.nm) - v0).sized(-2.5.nm+1.dbu).sized(2.5.nm-1.dbu)
+v0.edges.and(m1ovlp5v0).space(23.nm, euclidian).polygons.not(v0spaceortho).output("V0.S.2", "V0.S.2 : Min. corner-to-corner spacing between two V0 instances—both with a 5 nm M1 end-cap : 23nm")
+v0.edges.not_interacting(m1ovlp5v0).space(30.nm, euclidian).output("V0.S.3", "V0.S.3 : Min. corner-to-corner spacing between two V0 instances—both without a 5 nm M1 end-cap : 30nm")
+v0.edges.and(m1ovlp5v0).separation(v0.edges.not_interacting(m1ovlp5v0), 27.nm, euclidian).output("V0.S.4", "V0.S.4 : Min. corner-to-corner spacing between two V0 instances—one with and another without, a 5 nm M1 end-cap : 27nm")
+v0spaceortho.forget
+m1ovlp5v0.forget
+(v0 &amp; lig).with_area(0 .. 0.000288).output("V0.LIG.A.1", "V0.LIG.A.1 : Min. area of overlap between V0 (interacting with LIG and not inside LISD) and LIG : 288nm2")
+
+##########################################################
+if OFFGRID
+info("GRID section")
+
+
+grid = 1.nm
+all_drawing = [ :nwell, :fin, :gate, :gcut, :active, :sdt, :nselect, :pselect, :slvt, :lvt, :sramdrc, :sramvt, :dummy, :lig, :lisd, :m0, :v0, :m1, :v1, :m2, :v2, :m3, :v3, :m4, :v4, :m5, :v5, :m6, :v6, :m7, :v7, :m8, :v8, :m9, :v9, ]
+  all_drawing.each do |dwg|
+    # a Ruby idiom to get the value of a variable whose name is in "dwg" (as symbol)
+    layer = binding.local_variable_get(dwg)
+    layer.ongrid(grid).polygons(2.nm).output("GRID: vertexes on layer #{dwg} not on grid of #{'%.12g' % grid}")
+    nonortho_edges = layer.edges - layer.edges.with_angle(0) - layer.edges.with_angle(90)
+    nonortho_edges.output("#{dwg}.GEOMETRY.NONORTHOGONAL" , "GEOMETRY.NONORTHOGONAL on layer #{dwg}")
+  end
+end
+</text>
+</klayout-macro>
+
+
+
+
+
+
+
+
+
+
+
+

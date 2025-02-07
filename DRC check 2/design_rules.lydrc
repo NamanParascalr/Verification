@@ -1,0 +1,25 @@
+{
+    "min_width": 0.108,
+    "min_area": 0.05,
+    "min_spacing": 0.03,
+    "layer_rules": {
+        "1": {
+            "min_width": 0.018,
+            "min_spacing": 0.018,
+            "min_corner2corner_spacing": 0.020,
+            "min_area": 0.000504
+        },
+        "2": {
+            "min_width": 0.018,
+            "min_spacing": 0.018,
+            "min_corner2corner_spacing": 0.020,
+            "min_area": 0.000504
+        },
+        "3": {
+            "min_width": 0.018,
+            "min_spacing": 0.018,
+            "min_corner2corner_spacing": 0.020,
+            "min_area": 0.000504
+        } 
+    }
+}

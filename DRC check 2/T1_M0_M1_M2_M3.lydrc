@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>drc</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>false</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name>drc_scripts</group-name>
+ <menu-path>tools_menu.drc.end</menu-path>
+ <interpreter>dsl</interpreter>
+ <dsl-interpreter-name>drc-dsl-xml</dsl-interpreter-name>
+ <text>
+ if $in_gds
+  source($in_gds)
+end
+
+if $report_file
+  report("ASAP7 DRC runset", $report_file)
+else
+  report("ASAP7 DRC runset", File.join(File.dirname(RBA::CellView::active.filename), "6_drc_count.rpt"))
+end
+# DRC test to run or not
+###############
+OFFGRID = false
+DEBUG = true # manufacturing grid/angle checks
+# KLAYOUT setup
+########################
+# Use a tile size of 1mm
+tiles(1000.um)
+# Use a tile border of 10 micron:
+tile_borders(1.um)
+#no_borders
+
+# Hierachical
+deep
+
+# Use 4 CPU cores
+threads(8)
+verbose(true)
+
+
+######################################################
+# layers definitions
+########################
+m0 = input(15, 0)
+m1 = input(19, 0)
+m2 = input(20, 0)
+m3 = input(30, 0)
+#########################################################
+
+
+
+
+
+
+
+# splits a layer classes with increasing min dimensions
+def classify_by_width(layer, *dimensions)
+  dimensions.collect { |d| layer = layer.sized(-0.5 * (d - 1.dbu)).sized(0.5 * (d - 1.dbu)) }
+end
+# Define a new custom function that selects polygons by their number of holes:
+# It will return a new layer containing those polygons with min to max holes.
+# max can be nil to omit the upper limit.
+class DRC::DRCLayer
+  def with_holes(min, max)
+    new_data = RBA::Region::new
+    self.data.each do |p|
+      if p.holes &gt;= (min || 0) &amp;&amp; (!max || p.holes &lt;= max)
+        new_data.insert(p)
+      end
+    end
+    DRC::DRCLayer::new(@engine, new_data)
+  end
+end 
+
+
+
+# DRC section
+########################
+info("DRC section")
+
+###   M0
+m0.width(18.nm).output("M0.W.1", "M0.W.1 : Min. width of M0 : 18nm")
+m0.space(18.nm).polygons.not_interacting(m0.edges.with_length(0..36.nm)).output("M0.S.1", "M0.S.1 : Min. spacing between two M0' edges, when both edges are &gt; 36 nm : 18nm")
+m0.space(20.nm, euclidian).polygons.not_interacting(m0long).output("M0.S.6", "M0.S.6 : Min. corner-to-corner spacing between two M0 : 20nm")
+m0long.forget
+m0.with_area(0 .. 0.000504).output("M0.A.1", "M0.A.1 : Min. area of M0 : 504nm2")
+
+
+###   M1
+m1.width(18.nm).output("M1.W.1", "M1.W.1 : Min. width of M1 : 18nm")
+m1.space(18.nm).polygons.not_interacting(m1.edges.with_length(0..36.nm)).output("M1.S.1", "M1.S.1 : Min. spacing between two M1' edges, when both edges are &gt; 36 nm : 18nm")
+m1.space(20.nm, euclidian).polygons.not_interacting(m1long).output("M1.S.6", "M1.S.6 : Min. corner-to-corner spacing between two M1 : 20nm")
+m1long.forget
+m1.with_area(0 .. 0.000504).output("M1.A.1", "M1.A.1 : Min. area of M1 : 504nm2")
+
+###   M2
+m2.width(18.nm).output("M2.W.1", "M2.W.1 : Min. width of M2 : 18nm")
+m2.space(18.nm).polygons.not_interacting(m2.edges.with_length(0..36.nm)).output("M2.S.1", "M2.S.1 : Min. spacing between two M2' edges, when both edges are &gt; 36 nm : 18nm")
+m2.space(20.nm, euclidian).polygons.not_interacting(m2long).output("M2.S.6", "M2.S.6 : Min. corner-to-corner spacing between two M2 : 20nm")
+m2long.forget
+m2.with_area(0 .. 0.000504).output("M2.A.1", "M2.A.1 : Min. area of M2 : 504nm2")
+
+###  M3
+m3.width(18.nm).output("M3.W.1", "M3.W.1 : Min. width of M3 : 18nm")
+m3.space(18.nm).polygons.not_interacting(m3.edges.with_length(0..36.nm)).output("M3.S.1", "M3.S.1 : Min. spacing between two M3' edges, when both edges are &gt; 36 nm : 18nm")
+m3.space(20.nm, euclidian).polygons.not_interacting(m3long).output("M3.S.6", "M3.S.6 : Min. corner-to-corner spacing between two M3 : 20nm")
+m3long.forget
+m3.with_area(0 .. 0.000504).output("M3.A.1", "M3.A.1 : Min. area of M3 : 504nm2")
+
+##########################################################
+if OFFGRID
+info("GRID section")
+
+
+grid = 1.nm
+all_drawing = [ :nwell, :fin, :gate, :gcut, :active, :sdt, :nselect, :pselect, :slvt, :lvt, :sramdrc, :sramvt, :dummy, :lig, :lisd, :m0, :v0, :m1, :v1, :m2, :v2, :m3, :v3, :m4, :v4, :m5, :v5, :m6, :v6, :m7, :v7, :m8, :v8, :m9, :v9, ]
+  all_drawing.each do |dwg|
+    # a Ruby idiom to get the value of a variable whose name is in "dwg" (as symbol)
+    layer = binding.local_variable_get(dwg)
+    layer.ongrid(grid).polygons(2.nm).output("GRID: vertexes on layer #{dwg} not on grid of #{'%.12g' % grid}")
+    nonortho_edges = layer.edges - layer.edges.with_angle(0) - layer.edges.with_angle(90)
+    nonortho_edges.output("#{dwg}.GEOMETRY.NONORTHOGONAL" , "GEOMETRY.NONORTHOGONAL on layer #{dwg}")
+  end
+end
+</text>
+</klayout-macro>
+
+
+
+
+
+
+
+
+
+
+
+
